@@ -1,233 +1,195 @@
-
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Popcorn Multiplayer</title>
+<title>Popcorn Multiplayer Arcade</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+
 <style>
 body{
   margin:0;
-  font-family:Arial, sans-serif;
-  background:#f8fafc;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  height:100vh;
-}
-#game{
-  width:360px;
-  height:560px;
-  background:white;
-  border-radius:18px;
-  box-shadow:0 10px 30px rgba(0,0,0,.15);
-  position:relative;
-  overflow:hidden;
+  background:#020617;
+  color:#e5e7eb;
+  font-family:Arial;
+  text-align:center;
 }
 header{
-  padding:12px;
-  text-align:center;
-  background:#facc15;
-  font-weight:bold;
+  padding:20px;
+  background:linear-gradient(135deg,#2563eb,#4f46e5);
 }
-#info{
-  display:flex;
-  justify-content:space-between;
-  padding:8px 12px;
-  font-size:14px;
-}
-#field{
-  position:relative;
-  width:100%;
-  height:380px;
-  background:#fff7ed;
-}
-.kernel{
-  position:absolute;
-  width:30px;
-  height:30px;
-  background:#fde68a;
-  border-radius:50%;
-  cursor:pointer;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-}
-#mp{
-  padding:10px;
-  text-align:center;
-}
-#gameover{
-  position:absolute;
-  inset:0;
-  background:rgba(0,0,0,.6);
-  color:white;
-  display:none;
-  justify-content:center;
-  align-items:center;
-  flex-direction:column;
+canvas{
+  background:black;
+  border-radius:12px;
+  display:block;
+  margin:20px auto;
 }
 button{
-  padding:8px 14px;
+  padding:10px 18px;
+  margin:6px;
   border:none;
   border-radius:8px;
-  background:#facc15;
-  font-weight:bold;
+  background:#2563eb;
+  color:white;
   cursor:pointer;
-  margin:4px;
 }
+#status{margin-top:10px}
 </style>
 </head>
 
 <body>
-<div id="game">
-<header>🍿 Popcorn Multiplayer</header>
 
-<div id="info">
-  <div>You: <span id="myScore">0</span></div>
-  <div>Friend: <span id="opScore">0</span></div>
-  <div>Miss: <span id="miss">0</span>/5</div>
-</div>
+<header>
+<h1>🍿 Popcorn Multiplayer</h1>
+<p>Move paddle • Break popcorn • One-click invite</p>
+</header>
 
-<div id="field"></div>
+<button onclick="hostGame()">Host Game</button>
 
-<div id="mp">
-  <button onclick="host()">Host</button>
-  <button onclick="join()">Join</button>
-  <div id="status">Offline</div>
-</div>
+<div id="status">Not connected</div>
 
-<div id="gameover">
-  <h2>Game Over</h2>
-  <p>You: <span id="fMy"></span> | Friend: <span id="fOp"></span></p>
-  <button onclick="resetGame()">Restart</button>
-</div>
-</div>
+<canvas id="game" width="400" height="500"></canvas>
 
 <script>
-const field=document.getElementById("field")
-const myScoreEl=document.getElementById("myScore")
-const opScoreEl=document.getElementById("opScore")
-const missEl=document.getElementById("miss")
-const statusEl=document.getElementById("status")
-const gameOverEl=document.getElementById("gameover")
-const fMy=document.getElementById("fMy")
-const fOp=document.getElementById("fOp")
+/* ================= WEBRTC ONE CLICK INVITE ================= */
 
-let myScore=0, opScore=0, miss=0
-let speed=2000
-let spawnLoop
 let pc, dc
-let multiplayer=false
 
-/* ---------- MULTIPLAYER ---------- */
-function host(){
-  multiplayer=true
-  setup(true)
-}
-function join(){
-  multiplayer=true
-  setup(false)
+function encodeSDP(obj){
+  const json = JSON.stringify(obj)
+  const compressed = pako.deflate(json)
+  return btoa(String.fromCharCode(...compressed))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')
 }
 
-function setup(isHost){
+function decodeSDP(str){
+  str=str.replace(/-/g,'+').replace(/_/g,'/')
+  const bin=atob(str)
+  const arr=Uint8Array.from(bin,c=>c.charCodeAt(0))
+  return JSON.parse(pako.inflate(arr,{to:'string'}))
+}
+
+function createPeer(isHost){
   pc=new RTCPeerConnection()
+
   if(isHost){
-    dc=pc.createDataChannel("pop")
-    bind()
+    dc=pc.createDataChannel("game")
+    bindChannel()
   }else{
-    pc.ondatachannel=e=>{dc=e.channel;bind()}
+    pc.ondatachannel=e=>{
+      dc=e.channel
+      bindChannel()
+    }
   }
 
   pc.onicecandidate=e=>{
-    if(e.candidate) console.log(JSON.stringify(e.candidate))
-  }
-
-  if(isHost){
-    pc.createOffer().then(o=>{
-      pc.setLocalDescription(o)
-      alert("Send OFFER:\n"+JSON.stringify(o))
-    })
-  }else{
-    const offer=JSON.parse(prompt("Paste OFFER"))
-    pc.setRemoteDescription(offer)
-    pc.createAnswer().then(a=>{
-      pc.setLocalDescription(a)
-      alert("Send ANSWER:\n"+JSON.stringify(a))
-    })
+    if(e.candidate) return
+    if(pc.localDescription.type==="offer"){
+      const code=encodeSDP(pc.localDescription)
+      const link=location.origin+location.pathname+"#join="+code
+      navigator.clipboard.writeText(link)
+      alert("Invite link copied:\n\n"+link)
+    }
+    if(pc.localDescription.type==="answer"){
+      const code=encodeSDP(pc.localDescription)
+      location.hash="answer="+code
+    }
   }
 }
 
-function bind(){
+function bindChannel(){
   dc.onopen=()=>{
-    statusEl.textContent="Connected"
-    start()
+    status.textContent="Connected"
   }
   dc.onmessage=e=>{
-    const d=JSON.parse(e.data)
-    if(d.t==="spawn") spawnKernel(d.id,d.x,d.y)
-    if(d.t==="pop"){
-      const k=document.getElementById(d.id)
-      if(k){k.remove();opScore++;opScoreEl.textContent=opScore}
-    }
-    if(d.t==="miss"){
-      miss=d.m
-      missEl.textContent=miss
-      if(miss>=5) endGame()
-    }
-    if(d.t==="over") endGame()
+    const s=JSON.parse(e.data)
+    ball=s.ball
+    blocks=s.blocks
   }
 }
 
-/* ---------- GAME ---------- */
-function start(){
-  clearInterval(spawnLoop)
-  spawnLoop=setInterval(()=>{
-    const id="k"+Date.now()
-    const x=Math.random()*(field.clientWidth-30)
-    const y=Math.random()*(field.clientHeight-30)
-    spawnKernel(id,x,y)
-    dc.send(JSON.stringify({t:"spawn",id,x,y}))
-  },speed)
+async function hostGame(){
+  createPeer(true)
+  await pc.setLocalDescription(await pc.createOffer())
 }
 
-function spawnKernel(id,x,y){
-  const k=document.createElement("div")
-  k.className="kernel"
-  k.id=id
-  k.style.left=x+"px"
-  k.style.top=y+"px"
-  field.appendChild(k)
-
-  let timer=setTimeout(()=>{
-    if(k.parentNode){
-      k.remove()
-      miss++
-      missEl.textContent=miss
-      dc.send(JSON.stringify({t:"miss",m:miss}))
-      if(miss>=5) dc.send(JSON.stringify({t:"over"}))
-    }
-  },1500)
-
-  k.onclick=()=>{
-    clearTimeout(timer)
-    if(!k.parentNode)return
-    k.remove()
-    myScore++
-    myScoreEl.textContent=myScore
-    dc.send(JSON.stringify({t:"pop",id}))
+window.onload=async()=>{
+  if(location.hash.startsWith("#join=")){
+    const offer=decodeSDP(location.hash.slice(6))
+    createPeer(false)
+    await pc.setRemoteDescription(offer)
+    await pc.setLocalDescription(await pc.createAnswer())
+  }
+  if(location.hash.startsWith("#answer=")){
+    await pc.setRemoteDescription(decodeSDP(location.hash.slice(8)))
   }
 }
 
-function endGame(){
-  clearInterval(spawnLoop)
-  fMy.textContent=myScore
-  fOp.textContent=opScore
-  gameOverEl.style.display="flex"
-}
+/* ================= POPCORN GAME ================= */
 
-function resetGame(){
-  location.reload()
+const canvas=document.getElementById("game")
+const ctx=canvas.getContext("2d")
+
+let paddle={x:170,w:60}
+let ball={x:200,y:250,vx:3,vy:-3}
+let blocks=[]
+let isHost=false
+
+function initBlocks(){
+  blocks=[]
+  for(let y=0;y<4;y++){
+    for(let x=0;x<7;x++){
+      blocks.push({x:x*55+10,y:y*30+30})
+    }
+  }
 }
+initBlocks()
+
+document.addEventListener("mousemove",e=>{
+  const r=canvas.getBoundingClientRect()
+  paddle.x=e.clientX-r.left-paddle.w/2
+})
+
+function update(){
+  ctx.clearRect(0,0,400,500)
+
+  ctx.fillStyle="cyan"
+  ctx.fillRect(paddle.x,470,paddle.w,10)
+
+  ball.x+=ball.vx
+  ball.y+=ball.vy
+
+  if(ball.x<0||ball.x>400) ball.vx*=-1
+  if(ball.y<0) ball.vy*=-1
+
+  if(ball.y>460&&ball.x>paddle.x&&ball.x<paddle.x+paddle.w){
+    ball.vy*=-1
+  }
+
+  blocks=blocks.filter(b=>{
+    if(ball.x>b.x&&ball.x<b.x+50&&ball.y>b.y&&ball.y<b.y+20){
+      ball.vy*=-1
+      return false
+    }
+    return true
+  })
+
+  ctx.fillStyle="yellow"
+  ctx.beginPath()
+  ctx.arc(ball.x,ball.y,6,0,7)
+  ctx.fill()
+
+  ctx.fillStyle="orange"
+  blocks.forEach(b=>ctx.fillRect(b.x,b.y,50,20))
+
+  if(dc&&dc.readyState==="open"){
+    dc.send(JSON.stringify({ball,blocks}))
+  }
+
+  requestAnimationFrame(update)
+}
+update()
 </script>
+
 </body>
 </html>
