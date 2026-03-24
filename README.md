@@ -1,240 +1,105 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<title>3D Image Slices Parallax</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<style>
-html,body{height:100%;margin:0;font-family:Arial,Helvetica,sans-serif;background:#111;color:#fff;display:flex;align-items:center;justify-content:center}
-.stage {
-width: 720px;
-max-width: 90vw;
-height: 480px;
-max-height: 70vh;
-perspective: 1200px; / camera distance /
--webkit-perspective: 1200px;
-position: relative;
-}
-
-.card {
-width:100%;
-height:100%;
-position:relative;
-transform-style: preserve-3d; / allow children to translateZ /
-transition: transform 0.15s ease-out;
-will-change: transform;
-border-radius:8px;
-overflow: hidden;
-box-shadow: 0 18px 50px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
-background: #222;
-}
-
-/ each slice uses the image as background and is absolutely positioned /
-.slice {
-position: absolute;
-top: 0;
-bottom: 0;
-transform-style: preserve-3d;
-backface-visibility: hidden;
-will-change: transform;
-pointer-events: none;
-}
-
-/ small UI below /
-.controls {
-margin-top:14px;
-width:720px;
-max-width:90vw;
-display:flex;
-gap:12px;
-align-items:center;
-justify-content:center;
-color:#ddd;
-font-size:14px;
-}
-.controls input[type="range"] {width:180px}
-.credits {position: absolute; left: 8px; bottom: 8px; font-size:12px; color: rgba(255,255,255,0.6)}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My First Three.js 3D Model</title>
+    <style>
+        body { margin: 0; overflow: hidden; } / Remove default margins and scrollbars /
+        canvas { display: block; } / Ensure the canvas takes up the whole space /
+    </style>
 </head>
 <body>
+    <!--
+        The Three.js script is loaded from a CDN (Content Delivery Network).
+        We use 'type="module"' because Three.js is distributed as an ES module,
+        and this allows us to use 'import' statements in our 'main.js'.
+        OrbitControls is also an ES module from the examples directory.
+    -->
+    <script type="module" src="https://unpkg.com/three@0.160.0/build/three.module.js"></script>
+    <script type="module" src="https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js"></script>
+    // Import necessary modules from Three.js
+// 'THREE' is the main Three.js library
+// 'OrbitControls' allows for mouse interaction (rotate, zoom)
+import  as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
-<div style="text-align:center">
-<div class="stage" id="stage">
-<div class="card" id="card"></div>
-<div class="credits">Move mouse / touch to rotate</div>
-</div>
+// --- 1. Set up the Scene, Camera, and Renderer ---
 
-<div class="controls" aria-hidden="true">
-<label>Slices: <span id="sliceCountLabel">30</span>
-<input id="sliceCount" type="range" min="6" max="120" value="30">
-</label>
-<label>Depth: <span id="depthLabel">220</span>px
-<input id="depth" type="range" min="20" max="800" value="220">
-</label>
-<label>Rotate strength:
-<input id="rotateStrength" type="range" min="4" max="40" value="14">
-</label>
-<button id="reload">Reload slices</button>
-</div>
-</div>
+// Create a new Three.js Scene. This is where all objects, cameras, and lights are placed.
+const scene = new THREE.Scene();
 
-<script>
-// Configuration: change this to use another image
-const IMAGESRC = 'https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?q=80&w=2400&auto=format&fit=crop&ixlib=rb-4.0.3&s=4a2b6fcfb7d9a2b5c9f6d8f2d8a8a3d6';
+// Create a PerspectiveCamera. This mimics how the human eye sees things.
+// Arguments: field of view (degrees), aspect ratio, near clipping plane, far clipping plane
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-const stage = document.getElementById('stage');
-const card = document.getElementById('card');
+// Create a WebGLRenderer. This is responsible for rendering the scene onto a canvas.
+const renderer = new THREE.WebGLRenderer({ antialias: true }); // antialias for smoother edges
+renderer.setSize(window.innerWidth, window.innerHeight); // Set the renderer size to fill the window
+document.body.appendChild(renderer.domElement); // Add the renderer's canvas to the HTML body
 
-const sliceRange = document.getElementById('sliceCount');
-const sliceCountLabel = document.getElementById('sliceCountLabel');
-const depthRange = document.getElementById('depth');
-const depthLabel = document.getElementById('depthLabel');
-const rotateRange = document.getElementById('rotateStrength');
-const reloadBtn = document.getElementById('reload');
+// --- 2. Create the 3D Model (Geometry + Material = Mesh) ---
 
-let slices = parseInt(sliceRange.value, 10);
-let depth = parseInt(depthRange.value, 10);
-let rotateStrength = parseInt(rotateRange.value, 10);
+// Define the geometry (shape) of our 3D model. Here, a simple box.
+// Arguments: width, height, depth
+const geometry = new THREE.BoxGeometry(1, 1, 1); // A 1x1x1 unit cube
 
-let img = new Image();
-img.crossOrigin = 'anonymous'; // in case of remote images
-img.src = IMAGESRC;
+// Define the material (appearance) of our 3D model.
+// MeshStandardMaterial reacts to light, making it more realistic.
+// You can change 'color' to any hex code (e.g., 0xff0000 for red).
+const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 }); // A green color
 
-// update labels
-sliceCountLabel.textContent = slices;
-depthLabel.textContent = depth;
+// Create a Mesh by combining the geometry and material. This is our actual 3D object.
+const cube = new THREE.Mesh(geometry, material);
+scene.add(cube); // Add the cube to the scene
 
-// when image loads, build slices
-img.addEventListener('load', () => {
-buildSlices();
-});
+// --- 3. Add Lights to the Scene ---
+// Without lights, MeshStandardMaterial objects will appear black.
 
-// rebuild when controls change
-sliceRange.addEventListener('input', () => {
-slices = parseInt(sliceRange.value, 10);
-sliceCountLabel.textContent = slices;
-});
-depthRange.addEventListener('input', () => {
-depth = parseInt(depthRange.value, 10);
-depthLabel.textContent = depth;
-});
-rotateRange.addEventListener('input', () => {
-rotateStrength = parseInt(rotateRange.value, 10);
-});
+// AmbientLight: Illuminates all objects in the scene equally from all directions.
+// Arguments: color, intensity (0-1)
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Soft white light
+scene.add(ambientLight);
 
-reloadBtn.addEventListener('click', () => buildSlices());
+// DirectionalLight: Simulates light from a distant source (like the sun).
+// Arguments: color, intensity (0-1)
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+directionalLight.position.set(1, 1, 1).normalize(); // Position the light (relative to scene origin)
+scene.add(directionalLight);
 
-function buildSlices() {
-// Clear existing slices
-card.innerHTML = '';
+// --- 4. Position the Camera ---
+camera.position.z = 5; // Move the camera back 5 units so we can see the cube
 
-const w = card.clientWidth;
-const h = card.clientHeight;
+// --- 5. Add Interactive Controls ---
+// OrbitControls allows you to rotate, pan, and zoom the camera with your mouse/touch.
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; // Give a sense of weight to the controls
+controls.dampingFactor = 0.05;
+controls.screenSpacePanning = false;
+controls.minDistance = 2; // Minimum zoom distance
+controls.maxDistance = 10; // Maximum zoom distance
+controls.maxPolarAngle = Math.PI / 2; // Limit vertical rotation
 
-// Use the natural image size for crisp background scaling
-const imgW = img.naturalWidth;
-const imgH = img.naturalHeight;
+// --- 6. The Animation/Render Loop ---
+// This function will be called repeatedly, roughly 60 times per second (if possible).
+function animate() {
+    requestAnimationFrame(animate); // Request the browser to call 'animate' again for the next frame
 
-// We'll set background-size to match the card's display size so each slice lines up:
-const bgSize = ${w}px ${h}px;
+    // Update controls (important if damping is enabled)
+    controls.update();
 
-for (let i = 0; i < slices; i++) {
-const sliceEl = document.createElement('div');
-sliceEl.className = 'slice';
+    // Optional: Rotate the cube on each frame (uncomment to see it spin)
+    // cube.rotation.x += 0.005;
+    // cube.rotation.y += 0.005;
 
-// width & left as percentage so they adapt to container size
-const leftPct = (i / slices) 100;
-const widthPct = (1 / slices) 100;
-sliceEl.style.left = leftPct + '%';
-sliceEl.style.width = widthPct + '%';
-
-// background image uses the full image but positioned so each slice shows the correct part
-// compute background-position-x in pixels relative to the displayed width
-const bgPosX = - (i (w / slices));
-sliceEl.style.backgroundImage = url(${IMAGESRC});
-sliceEl.style.backgroundSize = bgSize;
-sliceEl.style.backgroundPosition = ${bgPosX}px 0px;
-sliceEl.style.backgroundRepeat = 'no-repeat';
-
-// place each slice at a different z position to create depth
-const z = ((i - (slices - 1) / 2) / (slices / 2)) (depth / 2);
-sliceEl.style.transform = translateZ(${z}px);
-
-// subtle layer ordering so close slices appear above further ones
-sliceEl.style.zIndex = String(i);
-
-card.appendChild(sliceEl);
-}
+    renderer.render(scene, camera); // Render the scene from the perspective of the camera
 }
 
-// Mouse / touch interaction to rotate card
-let rect = null;
-function updateRect() {
-rect = stage.getBoundingClientRect();
-}
-window.addEventListener('resize', updateRect);
-updateRect();
+animate(); // Start the animation loop
 
-let pointerDown = false;
-let lastX = 0, lastY = 0;
-function onPointerMove(clientX, clientY) {
-if (!rect) updateRect();
-const cx = rect.left + rect.width / 2;
-const cy = rect.top + rect.height / 2;
-const dx = clientX - cx;
-const dy = clientY - cy;
-
-// Normalize to [-1,1]
-const nx = dx / (rect.width / 2);
-const ny = dy / (rect.height / 2);
-
-const rotY = -nx rotateStrength; // rotate around vertical axis
-const rotX = ny (rotateStrength * 0.7); // rotate around horizontal axis (slightly less)
-
-// Slight translateZ to emphasize perspective on hover
-const translateZ = pointerDown ? 40 : 16;
-
-card.style.transform = rotateX(${rotX}deg) rotateY(${rotY}deg) translateZ(${translateZ}px);
-}
-
-// mouse
-stage.addEventListener('mousemove', (e) => {
-onPointerMove(e.clientX, e.clientY);
-});
-stage.addEventListener('mouseenter', (e) => {
-pointerDown = true;
-onPointerMove(e.clientX, e.clientY);
-});
-stage.addEventListener('mouseleave', () => {
-pointerDown = false;
-// return to gentle rest
-card.style.transform = rotateX(0deg) rotateY(0deg) translateZ(10px);
-});
-
-// touch
-stage.addEventListener('touchstart', (e) => {
-pointerDown = true;
-const t = e.touches[0];
-onPointerMove(t.clientX, t.clientY);
-}, {passive: true});
-stage.addEventListener('touchmove', (e) => {
-const t = e.touches[0];
-onPointerMove(t.clientX, t.clientY);
-}, {passive: true});
-stage.addEventListener('touchend', () => {
-pointerDown = false;
-card.style.transform = rotateX(0deg) rotateY(0deg) translateZ(10px);
-});
-
-// initial fallback transform
-card.style.transform = translateZ(10px);
-
-// ensure slices rebuild if container resizes (keeps background-size correct)
-const resizeObserver = new ResizeObserver(() => {
-// rebuild slices to update background-size/positions
-if (img.complete) buildSlices();
-updateRect();
-});
-resizeObserver.observe(card);
-
-// If you want to allow user-provided images, you could add a file input and set IMAGESRC to a data URL.
-</script>
+// --- 7. Handle Window Resizing ---
+// This ensures the 3D scene resizes correctly when the browser window is resized.
+window.addEventListener('resize', () => {
+    // Update camera aspect ratio
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix(); // Recalculate projection matrix for the camera
